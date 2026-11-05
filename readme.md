@@ -12,10 +12,19 @@ A plugin for [neleto](https://neleto.io/) that adds registrations to neleto's ev
 
 ## Usage in templates
 
-```hbs
-{{! event detail page: free spots + registration form }}
-{{{ event_registration event.id }}}
+Switch registration on for an event in the plugin's admin first; without that, both helpers render nothing.
 
-{{! event list: only the free spots badge }}
-{{{ event_spots event.id }}}
+On the event detail page (the page with the `/events/:slug` route), inside the component that shows the event:
+
+```hbs
+{{#if relations.global.event as event}}
+  …
+  {{ event_registration(event.id) }}
+{{/if}}
+```
+
+In an event list, the free spots badge for each event:
+
+```hbs
+{{ event_spots(event.id) }}
 ```

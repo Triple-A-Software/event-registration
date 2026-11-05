@@ -45,8 +45,8 @@ Pure functions, unit tested:
 
 | Hook | Route | Purpose |
 |---|---|---|
-| `helpers` | `/helper/event_registration` | `{{{ event_registration event.id }}}`: free spots + form, or the reason it's closed |
-| `helpers` | `/helper/event_spots` | `{{{ event_spots event.id }}}`: free spots badge for event lists |
+| `helpers` | `/helper/event_registration` | `{{ event_registration(event.id) }}`: free spots + form, or the reason it's closed |
+| `helpers` | `/helper/event_spots` | `{{ event_spots(event.id) }}`: free spots badge for event lists |
 | `pages` | `/event-registration/submit` | form POST (no layout), redirects back with `?registration=<flag>` |
 | `pages` | `/event-registration/cancel` | GET `?token=`: confirm page; POST: cancel |
 | `api` | `/api/events` | CMS events with config, confirmed seats, waitlist size |

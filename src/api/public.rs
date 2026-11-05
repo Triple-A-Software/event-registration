@@ -65,7 +65,7 @@ async fn load(state: &AppState, body: &HelperBody) -> AppResult<Option<(CmsEvent
     Ok(Some((event, config, a)))
 }
 
-/// `{{{ event_registration event.id }}}`. Never fails the page render: errors render nothing.
+/// `{{ event_registration(event.id) }}`. Never fails the page render: errors render nothing.
 pub async fn registration_helper(State(state): State<AppState>, Json(body): Json<HelperBody>) -> Json<Value> {
     let lang = Lang::from_code(body.page.language.as_deref());
     let loaded = async {
@@ -82,7 +82,7 @@ pub async fn registration_helper(State(state): State<AppState>, Json(body): Json
     }))
 }
 
-/// `{{{ event_spots event.id }}}`
+/// `{{ event_spots(event.id) }}`
 pub async fn spots_helper(State(state): State<AppState>, Json(body): Json<HelperBody>) -> Json<Value> {
     let lang = Lang::from_code(body.page.language.as_deref());
     match load(&state, &body).await {

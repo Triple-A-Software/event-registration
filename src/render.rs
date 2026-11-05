@@ -43,7 +43,7 @@ fn spots(availability: &Availability, lang: Lang) -> Option<(&'static str, &'sta
     })
 }
 
-/// `{{{ event_spots event.id }}}`. Styled inline: it is used in lists, where a `<style>` per item
+/// `{{ event_spots(event.id) }}`. Styled inline: it is used in lists, where a `<style>` per item
 /// would repeat. Themes can restyle `.er-spots--<state>`.
 pub fn spots_badge(availability: &Availability, lang: Lang) -> String {
     let Some((state, style, text)) = spots(availability, lang) else {
@@ -54,7 +54,7 @@ pub fn spots_badge(availability: &Availability, lang: Lang) -> String {
     )
 }
 
-/// `{{{ event_registration event.id }}}`: free spots and the form, or why registration is closed.
+/// `{{ event_registration(event.id) }}`: free spots and the form, or why registration is closed.
 /// `path` is the current page, the form redirects back there.
 pub fn registration_block(
     event_id: i32,
