@@ -1,0 +1,76 @@
+{
+    "$schema": "https://neleto.io/schemas/main/plugin_manifest_schema.json",
+    "name": "event-registration",
+    "version": "0.1.0",
+    "bin": "./target/x86_64-unknown-linux-gnu/release/event-registration",
+    "include_files": [
+        "ui/dist/**/*",
+        "target/x86_64-unknown-linux-gnu/release/event-registration",
+        "templates/**/*"
+    ],
+    "ui": "/ui",
+    "helpers": [
+        {
+            "name": "event_registration",
+            "route": "/helper/event_registration",
+            "type": "inline",
+            "return_value": "String",
+            "arguments": ["Int"]
+        },
+        {
+            "name": "event_spots",
+            "route": "/helper/event_spots",
+            "type": "inline",
+            "return_value": "String",
+            "arguments": ["Int"]
+        }
+    ],
+    "pages": [
+        {
+            "name": "Event registration submit",
+            "route": "/event-registration/submit",
+            "allow_select_layout": false
+        },
+        {
+            "name": "Event registration cancel",
+            "route": "/event-registration/cancel",
+            "allow_select_layout": false
+        }
+    ],
+    "api": [
+        {
+            "route": "/api/events",
+            "allowed_permissions": ["page.update"]
+        },
+        {
+            "route": "/api/events/:id",
+            "allowed_permissions": ["page.update"]
+        },
+        {
+            "route": "/api/registrations",
+            "allowed_permissions": ["page.update"]
+        },
+        {
+            "route": "/api/registrations/export",
+            "allowed_permissions": ["page.update"]
+        },
+        {
+            "route": "/api/settings",
+            "allowed_permissions": ["settings.update"]
+        }
+    ],
+    "dashboard_cards": [
+        {
+            "name": "upcoming-events",
+            "route": "/dashboard/upcoming",
+            "label": {
+                "de": "Anstehende Veranstaltungen",
+                "en": "Upcoming Events"
+            },
+            "description": {
+                "de": "Anmeldungen und freie Plätze der nächsten Veranstaltungen",
+                "en": "Registrations and free spots of the next events"
+            }
+        }
+    ]
+}
