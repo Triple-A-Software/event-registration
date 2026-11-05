@@ -11,7 +11,7 @@ const loading = ref(true);
 const showPast = ref(false);
 
 onMounted(async () => {
-    events.value = (await call(api<EventOverview[]>("/events"))) ?? [];
+    events.value = (await call(api<EventOverview[]>("/api/events"))) ?? [];
     loading.value = false;
 });
 

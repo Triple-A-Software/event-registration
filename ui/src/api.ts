@@ -67,7 +67,7 @@ export async function api<T>(path: string, method = "GET", body?: unknown): Prom
         .text()
         .then((t) => JSON.parse(t, (_, v) => (v === null ? undefined : v)))
         .catch(() => undefined);
-    if (!res.ok) throw new Error(json?.error ?? res.statusText);
+    if (!res.ok) throw new Error(json?.error ?? `${res.status} ${res.statusText}`.trim());
     return json as T;
 }
 

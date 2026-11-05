@@ -10,7 +10,7 @@ const settings = ref<Settings>({});
 const saving = ref(false);
 
 onMounted(async () => {
-    const s = await call(api<Settings>("/settings"));
+    const s = await call(api<Settings>("/api/settings"));
     if (s) settings.value = s;
 });
 
@@ -28,7 +28,7 @@ const providers = computed(() => [
 
 async function save() {
     saving.value = true;
-    const s = await call(api<Settings>("/settings", "PUT", settings.value));
+    const s = await call(api<Settings>("/api/settings", "PUT", settings.value));
     saving.value = false;
     if (!s) return;
     settings.value = s;

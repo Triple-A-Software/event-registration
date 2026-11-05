@@ -50,7 +50,7 @@ function show(o: EventOverview) {
 
 async function save() {
     saving.value = true;
-    const o = await call(api<EventOverview>(`/events/${props.id}`, "PUT", config.value));
+    const o = await call(api<EventOverview>(`/api/events/${props.id}`, "PUT", config.value));
     saving.value = false;
     if (!o) return;
     show(o);
@@ -68,7 +68,7 @@ async function loadRegistrations() {
     const params = new URLSearchParams({ event_id: String(props.id) });
     if (status.value !== "all") params.set("status", status.value);
     if (search.value.trim()) params.set("q", search.value.trim());
-    registrations.value = (await call(api<Registration[]>(`/registrations?${params}`))) ?? [];
+    registrations.value = (await call(api<Registration[]>(`/api/registrations?${params}`))) ?? [];
     loadingRegistrations.value = false;
 }
 
@@ -80,20 +80,20 @@ watch(search, () => {
 });
 
 onMounted(async () => {
-    const o = await call(api<EventOverview>(`/events/${props.id}`));
+    const o = await call(api<EventOverview>(`/api/events/${props.id}`));
     if (o) show(o);
     await loadRegistrations();
 });
 
 async function refresh() {
     await loadRegistrations();
-    const o = await call(api<EventOverview>(`/events/${props.id}`));
+    const o = await call(api<EventOverview>(`/api/events/${props.id}`));
     if (o) overview.value = o;
 }
 
 async function setStatus(r: Registration, s: Status) {
     if (s === r.status) return;
-    await call(api(`/registrations`, "PUT", { id: r.id, status: s }));
+    await call(api(`/api/registrations`, "PUT", { id: r.id, status: s }));
     await refresh();
 }
 
@@ -106,7 +106,7 @@ const deleteOpen = computed({
 });
 async function remove() {
     if (!toDelete.value) return;
-    await call(api(`/registrations?id=${toDelete.value.id}`, "DELETE"));
+    await call(api(`/api/registrations?id=${toDelete.value.id}`, "DELETE"));
     toDelete.value = undefined;
     await refresh();
 }
@@ -169,7 +169,7 @@ const columns = computed<TableColumn<Registration>[]>(() => [
         <UInput v-model="search" :placeholder="t('registrations.search')" icon="i-lucide-search" />
         <USelect v-model="status" :items="filterItems" class="w-40" />
         <UButton
-            :to="apiUrl(`/registrations/export?event_id=${id}&lang=${locale}`)"
+            :to="apiUrl(`/api/registrations/export?event_id=${id}&lang=${locale}`)"
             external
             variant="outline"
             icon="i-lucide-download"
