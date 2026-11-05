@@ -4,8 +4,8 @@
 use chrono::{Duration, Utc};
 use event_registration::{
     availability::Rejection,
-    database::{cancel, register},
-    model::{CmsEvent, NewRegistration, RegistrationStatus},
+    database::{cancel, delete_registration, register, save_config, set_status},
+    model::{CmsEvent, EventConfigInput, NewRegistration, RegistrationStatus},
 };
 use sqlx::PgPool;
 
@@ -27,6 +27,8 @@ fn input(email: &str, seats: i32) -> NewRegistration {
         phone: None,
         seats,
         comment: None,
+        language: "de".into(),
+        base_url: None,
     }
 }
 
@@ -84,4 +86,56 @@ async fn concurrent_registrations_never_overbook(db: PgPool) {
         }
     }
     assert_eq!(confirmed, 3);
+}
+
+#[ignore = "needs DATABASE_URL"]
+#[sqlx::test]
+async fn admin_changes_fill_freed_spots(db: PgPool) {
+    configure(&db, 1, true).await;
+    let event = event();
+    let reg = |email: &'static str| {
+        let (db, event) = (db.clone(), event.clone());
+        async move { register(&db, &event, &input(email, 1), Utc::now()).await.unwrap().unwrap() }
+    };
+    let a = reg("a@example.com").await;
+    let b = reg("b@example.com").await;
+    let c = reg("c@example.com").await;
+    assert_eq!((b.status, c.status), (RegistrationStatus::Waitlisted, RegistrationStatus::Waitlisted));
+
+    // admin cancel promotes the next in line
+    let (changed, previous) = set_status(&db, a.id, RegistrationStatus::Cancelled).await.unwrap().unwrap().unwrap();
+    assert_eq!(previous, RegistrationStatus::Confirmed);
+    assert_eq!(changed.promoted.iter().map(|r| r.id).collect::<Vec<_>>(), vec![b.id]);
+
+    // moving someone to the waitlist by hand does not move them straight back up
+    let (changed, _) = set_status(&db, b.id, RegistrationStatus::Waitlisted).await.unwrap().unwrap().unwrap();
+    assert!(changed.promoted.is_empty());
+
+    // raising the capacity promotes
+    let config = EventConfigInput {
+        enabled: true,
+        capacity: Some(2),
+        max_seats_per_registration: 4,
+        waitlist_enabled: true,
+        opens_at: None,
+        closes_at: None,
+        notify_email: Some("  ".into()),
+    };
+    let (saved, promoted) = save_config(&db, 1, &config).await.unwrap();
+    assert_eq!(saved.notify_email, None);
+    let mut ids: Vec<_> = promoted.iter().map(|r| r.id).collect();
+    ids.sort();
+    let mut expected = vec![b.id, c.id];
+    expected.sort();
+    assert_eq!(ids, expected);
+
+    // reactivating a cancelled address that registered again is refused
+    let a2 = reg("a@example.com").await;
+    assert_eq!(a2.status, RegistrationStatus::Waitlisted);
+    assert_eq!(set_status(&db, a.id, RegistrationStatus::Confirmed).await.unwrap().unwrap_err(), Rejection::AlreadyRegistered);
+
+    // deleting a confirmed registration promotes too
+    let deleted = delete_registration(&db, b.id).await.unwrap().unwrap();
+    assert_eq!(deleted.promoted.iter().map(|r| r.id).collect::<Vec<_>>(), vec![a2.id]);
+    assert!(delete_registration(&db, b.id).await.unwrap().is_none());
 }

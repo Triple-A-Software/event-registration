@@ -1,7 +1,14 @@
 use std::{env, net::SocketAddr};
 
-use axum::Router;
-use event_registration::{AppState, create_cms_db, create_db};
+use axum::{
+    Router,
+    routing::{get, post},
+};
+use event_registration::{
+    AppState,
+    api::{admin, dashboard, public},
+    create_cms_db, create_db,
+};
 use tokio::net::TcpListener;
 use tower_http::{
     normalize_path::NormalizePathLayer,
@@ -14,14 +21,23 @@ use tracing::Level;
 async fn main() {
     tracing_subscriber::fmt().with_target(false).compact().init();
 
-    let state = AppState {
-        db: create_db().await,
-        cms_db: create_cms_db().await,
-    };
+    let state = AppState::new(create_db().await, create_cms_db().await);
 
-    // routes of plugin.json are added here as they get built, see DEVELOPMENT.md
     let router = Router::new()
         .nest_service("/ui", ServeDir::new("ui/dist"))
+        .route("/helper/event_registration", post(public::registration_helper))
+        .route("/helper/event_spots", post(public::spots_helper))
+        .route("/event-registration/submit", post(public::submit))
+        .route("/event-registration/cancel", get(public::cancel_page).post(public::cancel))
+        .route("/api/events", get(admin::events))
+        .route("/api/events/{id}", get(admin::event).put(admin::save_event))
+        .route(
+            "/api/registrations",
+            get(admin::registrations).put(admin::set_status).delete(admin::delete),
+        )
+        .route("/api/registrations/export", get(admin::export))
+        .route("/api/settings", get(admin::settings).put(admin::save_settings))
+        .route("/dashboard/upcoming", get(dashboard::upcoming))
         .layer(NormalizePathLayer::trim_trailing_slash())
         .layer(
             TraceLayer::new_for_http()

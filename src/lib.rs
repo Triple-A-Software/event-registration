@@ -1,10 +1,17 @@
-use std::env;
+use std::{env, sync::Arc, time::Duration};
 
+use minijinja::{Environment, path_loader};
 use sqlx::PgPool;
 
+pub mod antispam;
+pub mod api;
 pub mod availability;
 pub mod database;
+pub mod email;
+pub mod lang;
 pub mod model;
+pub mod render;
+pub mod utils;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -12,6 +19,23 @@ pub struct AppState {
     pub db: PgPool,
     /// the Neleto CMS database, read for event titles, dates and status
     pub cms_db: PgPool,
+    /// dashboard card templates from `./templates`
+    pub env: Arc<Environment<'static>>,
+    pub rate_limiter: Arc<antispam::RateLimiter>,
+}
+
+impl AppState {
+    pub fn new(db: PgPool, cms_db: PgPool) -> Self {
+        let mut env = Environment::new();
+        env.set_loader(path_loader("./templates"));
+        Self {
+            db,
+            cms_db,
+            env: Arc::new(env),
+            // 10 submits per 10 minutes and ip: room for a family registering one by one
+            rate_limiter: Arc::new(antispam::RateLimiter::new(Duration::from_secs(600), 10)),
+        }
+    }
 }
 
 /// Connects to the plugin's own database and runs migrations.

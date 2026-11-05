@@ -1,0 +1,47 @@
+{
+    "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+    "formatter": {
+        "indentWidth": 4,
+        "indentStyle": "space",
+        "lineWidth": 130,
+        "formatWithErrors": true
+    },
+    "linter": {
+        "rules": {
+            "a11y": {
+                "useKeyWithClickEvents": "off"
+            }
+        }
+    },
+    "files": {
+        "includes": [
+            "**",
+            "!**/.pnp.cjs",
+            "!**/.nuxt",
+            "!**/node_modules",
+            "!**/.output",
+            "!**/dist",
+            "!**/.git",
+            "!**/migrations"
+        ],
+        "ignoreUnknown": true
+    },
+    "html": {
+        "experimentalFullSupportEnabled": true,
+        "formatter": {
+            "enabled": true
+        }
+    },
+    "vcs": {
+        "enabled": true,
+        "clientKind": "git",
+        "useIgnoreFile": true
+    },
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "on"
+            }
+        }
+    }
+}

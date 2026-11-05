@@ -1,0 +1,32 @@
+{% include "theme_head.html" %}
+<style>
+    html, body { background: var(--ui-bg); margin: 0; }
+    .er-card { font-family: system-ui, sans-serif; padding: 16px; color: var(--ui-text); }
+    .er-list { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+    .er-list li { padding: 8px 0; border-top: 1px solid var(--ui-border); }
+    .er-list li:first-child { border-top: 0; padding-top: 0; }
+    .er-row { display: flex; justify-content: space-between; gap: 8px; }
+    .er-title { font-weight: 600; }
+    .er-muted { color: var(--ui-text-muted); }
+    .er-bar { height: 6px; border-radius: 3px; background: var(--ui-bg-elevated); margin-top: 6px; overflow: hidden; }
+    .er-bar span { display: block; height: 100%; background: var(--ui-primary); }
+    .er-bar span.er-full { background: var(--ui-warning); }
+</style>
+<div class="er-card">
+    {% if events %}
+    <ul class="er-list">
+        {% for e in events %}
+        <li>
+            <div class="er-row"><span class="er-title">{{ e.title }}</span><span class="er-muted">{{ e.date }}</span></div>
+            <div class="er-row er-muted">
+                <span>{{ e.confirmed }} / {% if e.capacity %}{{ e.capacity }}{% else %}{{ unlimited }}{% endif %}</span>
+                {% if e.waitlisted %}<span>{{ e.waitlisted }} {{ waitlist }}</span>{% endif %}
+            </div>
+            {% if e.capacity %}<div class="er-bar"><span class="{% if e.percent >= 100 %}er-full{% endif %}" style="width: {{ e.percent }}%"></span></div>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="er-muted" style="margin: 0;">{{ empty }}</p>
+    {% endif %}
+</div>

@@ -59,6 +59,11 @@ pub struct Registration {
     pub cancel_token: Uuid,
     pub created_at: DateTime<Utc>,
     pub cancelled_at: Option<DateTime<Utc>>,
+    /// page language at submit, for the mails
+    pub language: String,
+    /// site origin at submit (`https://example.com`), for the cancel link in later mails
+    #[serde(skip)]
+    pub base_url: Option<String>,
 }
 
 /// What a visitor submits through the public registration form.
@@ -70,9 +75,37 @@ pub struct NewRegistration {
     pub phone: Option<String>,
     pub seats: i32,
     pub comment: Option<String>,
+    pub language: String,
+    pub base_url: Option<String>,
 }
 
-#[derive(sqlx::FromRow, Serialize, Deserialize, Clone, Debug)]
+/// What the admin saves for an event, see [`EventConfig`].
+#[derive(Deserialize, Clone, Debug)]
+pub struct EventConfigInput {
+    pub enabled: bool,
+    pub capacity: Option<i32>,
+    pub max_seats_per_registration: i32,
+    pub waitlist_enabled: bool,
+    pub opens_at: Option<DateTime<Utc>>,
+    pub closes_at: Option<DateTime<Utc>>,
+    pub notify_email: Option<String>,
+}
+
+/// One row of the admin's event list. `event: None` = the CMS event was deleted, only its
+/// config and registrations are left.
+#[derive(Serialize, Clone, Debug)]
+pub struct EventOverview {
+    pub id: i32,
+    pub event: Option<CmsEvent>,
+    pub public: bool,
+    pub config: Option<EventConfig>,
+    pub confirmed_seats: i64,
+    pub waitlisted_seats: i64,
+    /// not cancelled
+    pub active_registrations: i64,
+}
+
+#[derive(sqlx::FromRow, Serialize, Deserialize, Default, Clone, Debug)]
 pub struct Settings {
     pub notify_email: Option<String>,
     pub captcha_provider: Option<String>,

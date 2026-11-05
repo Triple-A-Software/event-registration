@@ -1,0 +1,25 @@
+{
+    "name": "ui",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "check": "vue-tsc -b"
+    },
+    "dependencies": {
+        "@nuxt/ui": "^4.3.0",
+        "vue": "^3.5.26",
+        "vue-i18n": "^11.2.8",
+        "vue-router": "^4.6.4"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.3.13",
+        "@vitejs/plugin-vue": "^5.2.1",
+        "@vue/tsconfig": "^0.7.0",
+        "typescript": "~5.7.2",
+        "vite": "^6.2.0",
+        "vue-tsc": "^3.1.5"
+    }
+}
