@@ -15,7 +15,7 @@ use crate::{
     AppState, database, email,
     lang::Lang,
     model::{EventConfigInput, EventOverview, Registration, RegistrationStatus, Settings},
-    utils::{AppError, AppResult, local},
+    utils::{AppError, AppResult, after_commit, local},
 };
 
 /// GET /api/events
@@ -107,7 +107,7 @@ pub async fn set_status(State(state): State<AppState>, Json(change): Json<Status
             ));
         }
     };
-    if let Some(event) = database::cms_event_any(&state.cms_db, changed.registration.event_id).await? {
+    if let Some(event) = after_commit(database::cms_event_any(&state.cms_db, changed.registration.event_id).await) {
         let mut promoted = changed.promoted;
         // confirmed by hand from the waitlist: same mail as moving up on its own
         if previous == RegistrationStatus::Waitlisted && change.status == RegistrationStatus::Confirmed {
@@ -128,7 +128,7 @@ pub async fn delete(State(state): State<AppState>, Query(q): Query<IdQuery>) -> 
     let changed = database::delete_registration(&state.db, q.id)
         .await?
         .ok_or(AppError::NotFound)?;
-    if let Some(event) = database::cms_event_any(&state.cms_db, changed.registration.event_id).await? {
+    if let Some(event) = after_commit(database::cms_event_any(&state.cms_db, changed.registration.event_id).await) {
         email::promoted(&event, &changed.promoted);
     }
     Ok(Json(json!({ "success": true })))

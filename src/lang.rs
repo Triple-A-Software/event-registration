@@ -71,7 +71,7 @@ impl Lang {
                 "Mit dieser E-Mail-Adresse besteht bereits eine Anmeldung.",
                 "There already is a registration with this email address.",
             ),
-            "not_enough_spots" => err("Es sind nur noch {free} Plätze frei.", "Only {free} spots are left."),
+            "not_enough_spots" => err("Nicht mehr genug Plätze frei (frei: {free}).", "Not enough spots left (free: {free})."),
             "full" => err(
                 "Die Veranstaltung ist leider ausgebucht.",
                 "Sorry, the event is fully booked.",

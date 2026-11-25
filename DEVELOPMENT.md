@@ -61,6 +61,7 @@ Pure functions, unit tested:
 
 - Both helpers render nothing for a draft or deleted event, an event without config, or on any error, so they never break a page.
 - The submit is a plain form POST and redirects back to the event page. The result banner (`?registration=confirmed`, `not_enough_spots&free=2`, …) is shown by an inline script, like blog-comments: neleto's page cache ignores the query string, so a server-rendered banner would be cached.
+- The form sits collapsed in a `<details class="er-toggle">` behind a button (`.er-open`). An error banner opens it again, and a captcha script loads only once it is open, since captchas can't render hidden.
 - The same cache means **the free-spots count on a cached page can be stale** until the page is re-rendered. The submit always checks against the database, so this can't overbook. It only shows "3 spots left" a little too long.
 - Spam: honeypot field, optional captcha (hCaptcha, reCAPTCHA, Turnstile; only with provider, site key and secret all set), and 10 submits per 10 minutes per IP. The rate limit is in memory, like form-plugin's.
 - The cancel link only shows a confirm page. The cancellation itself is a POST, because mail scanners follow links.

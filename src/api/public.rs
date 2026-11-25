@@ -5,7 +5,7 @@ use std::{collections::HashMap, time::Instant};
 use axum::{
     Form, Json,
     extract::{Query, State},
-    http::HeaderMap,
+    http::{HeaderMap, header},
     response::{Html, IntoResponse, Redirect, Response},
 };
 use chrono::Utc;
@@ -20,7 +20,7 @@ use crate::{
     lang::Lang,
     model::{CmsEvent, EventConfig, NewRegistration},
     render,
-    utils::AppResult,
+    utils::{AppResult, after_commit},
 };
 
 #[derive(Deserialize)]
@@ -111,17 +111,29 @@ fn resolve_path(route: &str, params: &HashMap<String, String>) -> String {
 /// POST /event-registration/submit. Neleto forwards the urlencoded body of a page without
 /// layout unchanged. Always redirects back to the event page with `?registration=<flag>`.
 pub async fn submit(State(state): State<AppState>, headers: HeaderMap, Form(form): Form<HashMap<String, String>>) -> Response {
-    let redirect = match form.get("redirect") {
-        // same-site paths only, no open redirect
-        Some(r) if r.starts_with('/') && !r.starts_with("//") => r.split(['?', '#']).next().unwrap_or("/").to_string(),
-        _ => "/".into(),
-    };
+    let redirect = safe_redirect(form.get("redirect").map(String::as_str));
     let (flag, free) = process(&state, &headers, &form).await.unwrap_or_else(|e| {
         tracing::error!("registration submit failed: {e}");
         ("error", None)
     });
     let free = free.map(|f| format!("&free={f}")).unwrap_or_default();
-    Redirect::to(&format!("{redirect}?registration={flag}{free}#event-registration")).into_response()
+    // no #event-registration: the anchor puts the banner under a sticky header, the script scrolls
+    Redirect::to(&format!("{redirect}?registration={flag}{free}")).into_response()
+}
+
+/// Same-site paths only, no open redirect. Browsers read `\` as `/` and drop tabs and newlines,
+/// so `/\evil.com` or `/<tab>/evil.com` would leave the site.
+fn safe_redirect(redirect: Option<&str>) -> String {
+    match redirect.map(|r| r.split(['?', '#']).next().unwrap_or_default()) {
+        Some(r)
+            if r.starts_with('/')
+                && !r[1..].starts_with(['/', '\\'])
+                && !r.contains(|c: char| c == '\\' || c.is_whitespace() || c.is_control()) =>
+        {
+            r.to_string()
+        }
+        _ => "/".into(),
+    }
 }
 
 async fn process(
@@ -178,7 +190,7 @@ async fn process(
         Err(rejection) => return Ok(rejection_flag(rejection)),
     };
     email::to_registrant(&event, &registration);
-    let to = database::notify_address(&state.db, event_id).await?;
+    let to = after_commit(database::notify_address(&state.db, event_id).await);
     email::to_organizer(to.as_deref(), &event, &registration, &[]);
     Ok(match registration.status {
         crate::model::RegistrationStatus::Waitlisted => ("waitlisted", None),
@@ -211,42 +223,49 @@ fn token(param: &TokenParam) -> Option<Uuid> {
     param.token.as_deref().and_then(|t| t.trim().parse().ok())
 }
 
+/// The cancel pages show the registrant's name and token: never cache them.
+type Private = ([(header::HeaderName, &'static str); 1], Html<String>);
+
+fn private(html: String) -> Private {
+    ([(header::CACHE_CONTROL, "no-store, private")], Html(html))
+}
+
 /// GET /event-registration/cancel?token=, the link in the mails. Only asks; cancelling is a POST.
 pub async fn cancel_page(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(q): Query<TokenParam>,
-) -> AppResult<Html<String>> {
+) -> AppResult<Private> {
     let registration = match token(&q) {
         Some(t) => database::registration_by_token(&state.db, t).await?,
         None => None,
     };
     let Some(r) = registration.filter(|r| r.status != crate::model::RegistrationStatus::Cancelled) else {
-        return Ok(Html(render::cancel_result(false, header_lang(&headers))));
+        return Ok(private(render::cancel_result(false, header_lang(&headers))));
     };
     let title = database::cms_event_any(&state.cms_db, r.event_id)
         .await?
         .map(|e| e.title)
         .unwrap_or_default();
-    Ok(Html(render::cancel_confirm(&r, &title, Lang::from_code(Some(&r.language)))))
+    Ok(private(render::cancel_confirm(&r, &title, Lang::from_code(Some(&r.language)))))
 }
 
 /// POST /event-registration/cancel
-pub async fn cancel(State(state): State<AppState>, headers: HeaderMap, Form(form): Form<TokenParam>) -> AppResult<Html<String>> {
+pub async fn cancel(State(state): State<AppState>, headers: HeaderMap, Form(form): Form<TokenParam>) -> AppResult<Private> {
     let changed = match token(&form) {
         Some(t) => database::cancel(&state.db, t).await?,
         None => None,
     };
     let Some(changed) = changed else {
-        return Ok(Html(render::cancel_result(false, header_lang(&headers))));
+        return Ok(private(render::cancel_result(false, header_lang(&headers))));
     };
     let r = &changed.registration;
-    if let Some(event) = database::cms_event_any(&state.cms_db, r.event_id).await? {
+    if let Some(event) = after_commit(database::cms_event_any(&state.cms_db, r.event_id).await) {
         email::promoted(&event, &changed.promoted);
-        let to = database::notify_address(&state.db, r.event_id).await?;
+        let to = after_commit(database::notify_address(&state.db, r.event_id).await);
         email::to_organizer(to.as_deref(), &event, r, &changed.promoted);
     }
-    Ok(Html(render::cancel_result(true, Lang::from_code(Some(&r.language)))))
+    Ok(private(render::cancel_result(true, Lang::from_code(Some(&r.language)))))
 }
 
 #[cfg(test)]
@@ -258,5 +277,14 @@ mod tests {
         let params = HashMap::from([("slug".to_string(), "sommerfest".to_string())]);
         assert_eq!(resolve_path("/events/:slug", &params), "/events/sommerfest");
         assert_eq!(resolve_path("", &params), "/");
+    }
+
+    #[test]
+    fn redirect_stays_on_site() {
+        assert_eq!(safe_redirect(Some("/events/fest?x=1#a")), "/events/fest");
+        for r in ["//evil.com", "/\\evil.com", "/\t/evil.com", "/a\\b", "https://evil.com", "/a\nb", ""] {
+            assert_eq!(safe_redirect(Some(r)), "/", "{r:?}");
+        }
+        assert_eq!(safe_redirect(None), "/");
     }
 }

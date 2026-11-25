@@ -119,6 +119,7 @@ pub async fn verify_captcha(settings: &Settings, response: Option<&str>) -> bool
     };
     let verified = reqwest::Client::new()
         .post(url)
+        .timeout(std::time::Duration::from_secs(10))
         .form(&[("secret", secret), ("response", response)])
         .header("Accept", "application/json")
         .send()

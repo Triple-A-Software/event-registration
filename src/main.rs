@@ -11,7 +11,6 @@ use event_registration::{
 };
 use tokio::net::TcpListener;
 use tower_http::{
-    normalize_path::NormalizePathLayer,
     services::ServeDir,
     trace::{self, TraceLayer},
 };
@@ -38,7 +37,6 @@ async fn main() {
         .route("/api/registrations/export", get(admin::export))
         .route("/api/settings", get(admin::settings).put(admin::save_settings))
         .route("/dashboard/upcoming", get(dashboard::upcoming))
-        .layer(NormalizePathLayer::trim_trailing_slash())
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))

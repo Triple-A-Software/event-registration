@@ -79,7 +79,8 @@ pub fn registration_block(
         })),
         Availability::Open { .. } => Some(config.max_seats_per_registration),
         _ => None,
-    };
+    }
+    .map(|m| config.capacity.map_or(m, |c| m.min(c)));
     if let Some(max_seats) = max_seats {
         out.push_str(&form(
             event_id,
@@ -97,8 +98,14 @@ pub fn registration_block(
 
 fn form(event_id: i32, path: &str, max_seats: i32, waitlist: bool, settings: &Settings, lang: Lang) -> String {
     let field = |label: &str, input: String| format!(r#"<label class="er-field"><span>{label}</span>{input}</label>"#);
+    let submit = if waitlist {
+        lang.pick("Auf die Warteliste", "Join the waitlist")
+    } else {
+        lang.pick("Anmelden", "Register")
+    };
+    // <details> opens the form on click without JS
     let mut f = format!(
-        r#"<form class="er-form" method="post" action="/event-registration/submit"><input type="hidden" name="event_id" value="{event_id}"><input type="hidden" name="redirect" value="{path}"><input type="hidden" name="lang" value="{lang}"><div class="er-hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>"#,
+        r#"<details class="er-toggle"><summary class="er-open">{submit}</summary><form class="er-form" method="post" action="/event-registration/submit"><input type="hidden" name="event_id" value="{event_id}"><input type="hidden" name="redirect" value="{path}"><input type="hidden" name="lang" value="{lang}"><div class="er-hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>"#,
         path = escape_html(path),
         lang = lang.code(),
     );
@@ -136,17 +143,12 @@ fn form(event_id: i32, path: &str, max_seats: i32, waitlist: bool, settings: &Se
             _ => ("cf-turnstile", "https://challenges.cloudflare.com/turnstile/v0/api.js"),
         };
         f.push_str(&format!(
-            r#"<div class="{class}" data-sitekey="{}"></div><script src="{src}" async defer></script>"#,
+            r#"<div class="{class}" data-sitekey="{}" data-er-src="{src}"></div>"#,
             escape_html(sitekey)
         ));
     }
-    let submit = if waitlist {
-        lang.pick("Auf die Warteliste", "Join the waitlist")
-    } else {
-        lang.pick("Anmelden", "Register")
-    };
     f.push_str(&format!(
-        r#"<button class="er-submit" type="submit">{submit}</button></form>"#
+        r#"<button class="er-submit" type="submit">{submit}</button></form></details>"#
     ));
     f
 }
@@ -163,7 +165,10 @@ const STYLE: &str = r#"<style>
 .er-field { display: flex; flex-direction: column; gap: 4px; font-size: .9em; font-weight: 600; }
 .er-field input, .er-field select, .er-field textarea { padding: 9px 11px; border: 1px solid #d1d5db; border-radius: 8px; font: inherit; font-weight: 400; }
 .er-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
-.er-submit { align-self: flex-start; padding: 10px 18px; border: 0; border-radius: 8px; background: #111827; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.er-toggle > summary { display: inline-block; list-style: none; user-select: none; }
+.er-toggle > summary::-webkit-details-marker { display: none; }
+.er-toggle[open] > summary { display: none; }
+.er-submit, .er-open { align-self: flex-start; padding: 10px 18px; border: 0; border-radius: 8px; background: #111827; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
 </style>"#;
 
 /// Shows the result banner from `?registration=<flag>` in the browser: Neleto's page cache
@@ -183,22 +188,44 @@ fn script(lang: Lang) -> String {
 const SCRIPT: &str = r#"<script inline="true">
 (function(){
   var B = /*BANNERS*/null;
-  function show(){
-    var params = new URLSearchParams(location.search);
-    var b = B[params.get('registration')];
+  function init(){
     var sec = document.getElementById('event-registration');
-    if (!b || !sec) return;
+    if (!sec) return;
+    var d = sec.querySelector('.er-toggle');
+    if (d) d.addEventListener('toggle', function(){
+      if (!d.open) return;
+      // captcha scripts render on load, and can't inside the closed <details>
+      var c = d.querySelector('[data-er-src]');
+      if (c) {
+        var s = document.createElement('script');
+        s.src = c.getAttribute('data-er-src'); s.async = true;
+        c.removeAttribute('data-er-src');
+        document.head.appendChild(s);
+      }
+      // no scroll: it would push the banner under a sticky header
+      d.querySelector('input[name=name]').focus({ preventScroll: true });
+    });
+    var params = new URLSearchParams(location.search);
+    var flag = params.get('registration');
+    var b = Object.prototype.hasOwnProperty.call(B, flag) && B[flag];
+    if (!b) return;
+    // a failed submit is retried, so show the form again
+    if (d && b[0] === 'err') d.open = true;
     var p = document.createElement('p');
     p.className = 'er-banner er-banner--' + b[0];
     p.setAttribute('role', 'status');
     p.textContent = b[1].replace('{free}', params.get('free') || '');
     sec.insertBefore(p, sec.firstChild);
+    // centered, so a sticky header can't cover it; again on load, as images shift the layout
+    var reveal = function(){ p.scrollIntoView({ block: 'center' }); };
+    reveal();
+    if (document.readyState !== 'complete') addEventListener('load', reveal);
     // so a reload doesn't show it again
     params.delete('registration'); params.delete('free');
     var qs = params.toString();
     history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
   }
-  if (document.readyState !== 'loading') show(); else document.addEventListener('DOMContentLoaded', show);
+  if (document.readyState !== 'loading') init(); else document.addEventListener('DOMContentLoaded', init);
 })();
 </script>"#;
 
@@ -293,6 +320,7 @@ mod tests {
         assert!(out.contains(r#"name="website""#));
         assert!(out.contains(r#"<input type="hidden" name="seats" value="1">"#));
         assert!(out.contains(">Anmelden</button>"));
+        assert!(out.contains(r#"<summary class="er-open">Anmelden</summary>"#));
     }
 
     #[test]
@@ -327,7 +355,7 @@ mod tests {
             ..Settings::default()
         };
         let out = block(Availability::Open { free: None }, &config(1, false), &s);
-        assert!(out.contains(r#"class="cf-turnstile" data-sitekey="KEY&quot;""#));
+        assert!(out.contains(r#"class="cf-turnstile" data-sitekey="KEY&quot;" data-er-src="https://challenges"#));
         assert!(!out.contains("secret"));
     }
 

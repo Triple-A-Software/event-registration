@@ -73,7 +73,10 @@ pub fn decide(
         Availability::Disabled => Err(Rejection::Disabled),
         Availability::NotOpenYet { .. } => Err(Rejection::NotOpenYet),
         Availability::Closed => Err(Rejection::Closed),
-        _ if seats < 1 || seats > config.max_seats_per_registration => Err(Rejection::InvalidSeats),
+        // a group bigger than the capacity would block the waitlist behind it forever
+        _ if seats < 1 || seats > config.max_seats_per_registration || config.capacity.is_some_and(|c| seats > c) => {
+            Err(Rejection::InvalidSeats)
+        }
         Availability::Full => Err(Rejection::Full),
         Availability::WaitlistOnly => Ok(RegistrationStatus::Waitlisted),
         Availability::Open { free: None } => Ok(RegistrationStatus::Confirmed),
@@ -157,6 +160,7 @@ mod tests {
         let w = config(Some(5), true);
         assert_eq!(decide(Some(&w), None, now, 3, 3), Ok(RegistrationStatus::Waitlisted));
         assert_eq!(decide(Some(&w), None, now, 5, 1), Ok(RegistrationStatus::Waitlisted));
+        assert_eq!(decide(Some(&config(Some(3), true)), None, now, 3, 4), Err(Rejection::InvalidSeats));
         assert_eq!(decide(None, None, now, 0, 1), Err(Rejection::Disabled));
     }
 

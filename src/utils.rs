@@ -15,6 +15,15 @@ pub enum AppError {
 
 pub type AppResult<T> = Result<T, AppError>;
 
+/// For lookups after the change is committed: a failure there must not report the change as
+/// failed, so it is only logged.
+pub fn after_commit<T: Default>(result: sqlx::Result<T>) -> T {
+    result.unwrap_or_else(|e| {
+        tracing::error!("after commit: {e}");
+        T::default()
+    })
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let status = match self {
